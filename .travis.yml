@@ -1,0 +1,55 @@
+sudo: false
+
+language: python
+python:
+  - 2.7
+
+services:
+  - mongodb
+  - elasticsearch
+
+env:
+  global:
+    - BASEX_DOWNLOAD_URL=http://files.basex.org/releases/8.0/BaseX80.zip
+  matrix:
+    - DB_ENGINE=mongodb PYMONGO="pymongo==2.8"
+    - DB_ENGINE=mongodb PYMONGO="pymongo"
+    - DB_ENGINE=elasticsearch ELASTICSEARCH="elasticsearch==1.5"
+
+before_install:
+  # install BaseX server and start it
+  - pushd .
+  - cd ..
+  - wget $BASEX_DOWNLOAD_URL
+  - unzip BaseX*.zip
+  - cd ./basex/bin
+  - ./basexhttp -S
+  - popd
+  # install Python dependencies
+  - if [[ "$DB_ENGINE" == "elasticsearch" ]]; then pip install $ELASTICSEARCH; fi
+  - if [[ "$DB_ENGINE" == "mongodb" ]]; then pip install $PYMONGO ; fi
+  - pip install bottle
+  - pip install requests
+  - pip install voluptuous
+  - pip install lxml
+  - pip install --pre pybasex
+  # export proper configuration file
+  - if [[ "$DB_ENGINE" == "mongodb" ]]; then export SERVICE_CONFIG_FILE=./config/services.mongodb.conf; fi
+  - if [[ "$DB_ENGINE" == "elasticsearch" ]]; then export SERVICE_CONFIG_FILE=./config/services.elasticsearch.conf; fi
+  - pip install nose-exclude
+  - pip install coveralls
+
+install:
+  - python setup.py install
+  - .travis-data/run_dbservice_daemon.sh
+  - .travis-data/run_queryservice_daemon.sh
+
+before_script:
+  - if [[ "$DB_ENGINE" == "mongodb" ]]; then export EXCLUDE_TEST_MODULE="elasticsearch|.*performance*"; fi
+  - if [[ "$DB_ENGINE" == "elasticsearch" ]]; then export EXCLUDE_TEST_MODULE="mongo|.*performance*"; fi
+
+script:
+  - nosetests -v test --ignore-file=$EXCLUDE_TEST_MODULE --with-coverage --cover-package pyehr
+
+after_success:
+  - coveralls

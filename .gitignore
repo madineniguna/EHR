@@ -1,0 +1,9 @@
+*.pyc
+.idea
+*~
+examples
+build
+nohup.out
+
+docs/_build
+.coverage
